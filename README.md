@@ -51,5 +51,5 @@ This project is provided AS-IS WITHOUT WARRANTY OR DEDICATED SUPPORT. Issues and
 
 ## Credits
 
-- [FLAIR](https://github.com/flairNLP/flair): An easy-to-use framework for state-of-the-art NLP}
+- [FLAIR](https://github.com/flairNLP/flair): An easy-to-use framework for state-of-the-art NLP
 - [Twitter for Python](https://github.com/tweepy/tweepy)
