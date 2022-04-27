@@ -2,7 +2,7 @@
 
 ## Description
 
-This taps Twitter's streaming API to filter tweets in real-time. It then sends them to New Relic as logs where they can be visualised and analysed as they arrive. The text of the tweet is processed by a text classificaiton model to apply a sentiment score to the tweet.
+This taps into the Twitter streaming API to filter tweets in real-time. Matching tweets are sent to New Relic as log events that can be queried and visualised in real-time. The text of the tweet is processed by a text classificaiton model and a sentiment score and label is applied to each tweet.
 
 ## Installation
 ```
