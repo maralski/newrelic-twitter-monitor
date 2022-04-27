@@ -44,6 +44,10 @@ Popular Tweets Dashboard
 
 ![Popular Tweets Dashboard](screenshots/populartweets.png)
 
+## Support
+
+This project is provided AS-IS WITHOUT WARRANTY OR DEDICATED SUPPORT. Issues and contributions should be reported to the project here on GitHub.
+
 ## Credits
 
 - [FLAIR](https://github.com/flairNLP/flair): An easy-to-use framework for state-of-the-art NLP}
