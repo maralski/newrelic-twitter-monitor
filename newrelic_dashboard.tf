@@ -13,11 +13,11 @@ resource "newrelic_one_dashboard" "twitter_monitor" {
       width = 4
       text = <<EOT
 ## Welcome to Twitter Monitor
-This dashboard displays the tweets tracked by nrtweetmon in real-time. The 
+This dashboard displays the tweets tracked by nrtwittermon in real-time. The 
 sentiment scores range from 0 (negative) to 1 (positive) with 0.5 representing a  neutral score.
 Each rule represents the tag associated with a tweetmon filter.
 
-The New Relic Log viewer can also be used to view and analyse tweets captured by nrtweetmon. Simply filter for `provider = nrtweetmon`.
+The New Relic Log viewer can also be used to view and analyse tweets captured by nrtwittermon. Simply filter for `provider = nrtwittermon`.
 EOT
     }
 
