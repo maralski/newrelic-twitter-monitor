@@ -1,2 +1,2 @@
-- labor: labor (auspol OR ausvotes) lang:en
-- liberal: liberal (auspol OR ausvotes) lang:en
+- labor: labor (auspol OR ausvotes) -is:retweet lang:en
+- liberal: liberal (auspol OR ausvotes) -is:retweet lang:en

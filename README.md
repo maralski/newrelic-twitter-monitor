@@ -20,6 +20,7 @@ pip install -r requirements.txt
 ## Configuration
 
 - Define one or more Twitter stream filter rules in `rules.yaml` that conform to Twitter filter rules [specification](https://developer.twitter.com/en/docs/twitter-api/tweets/filtered-stream/integrate/build-a-rule). Stay within the allowed number of rules associated with your application access level. Rules can be updated on the fly. Just edit `rules.yaml` and send HUP signal to process.
+- You may want to negate retweets by adding `-is:retweet` to each rule. Otherwise, Twitter truncates the text of retweets.
 - Add your Twitter applications bearer token to `config.py` as `TWITTER_BEARER_TOKEN = 'XXX'` or set environment variable.
 - Add New Relic insert key to `config.py` as `NEW_RELIC_INSERT_KEY = 'XXX'` or set environment variable.
 - Sensitive tweets are captured by default. To avoid them add `IGNORE_SENSITIVE_TWEETS = True` to `config.py` or set environment variable.
