@@ -6,7 +6,7 @@ This taps into the Twitter streaming API to filter tweets in real-time. Matching
 
 ## Installation
 ```
-virtualenv venv
+python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
