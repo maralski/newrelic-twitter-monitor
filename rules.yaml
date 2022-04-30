@@ -1,2 +1,2 @@
-- labor: labor (auspol OR ausvotes) -is:retweet lang:en
-- liberal: liberal (auspol OR ausvotes) -is:retweet lang:en
+- elon: (elonmusk OR "elon musk") -is:retweet lang:en
+- crypto: crypto -is:retweet lang:en

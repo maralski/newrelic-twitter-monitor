@@ -3,9 +3,10 @@ import os
 import sys
 import yaml
 import re
-import atexit
 import signal
 import logging
+import threading
+from collections import deque
 from logging.config import fileConfig
 from newrelic_telemetry_sdk import (
     LogClient, Harvester
@@ -17,16 +18,12 @@ DEFAULT_NEW_RELIC_HARVEST_INTERVAL = 5
 DEFAULT_IGNORE_SENSITIVE_TWEETS = False
 DEFAULT_RUN_SENTIMENT_ANALYSIS = True
 
-class Twittermon(tweepy.StreamingClient):
-
-    def __init__(self, bearer_token=None, nr_log_batch=None, rules=[],
-                 ignore_sensitive=None,
-                 sentiment_analysis=None):
-        self.bearer_token = bearer_token
-        super().__init__(bearer_token=self.bearer_token, wait_on_rate_limit=True)
-        self.nr_log_batch = nr_log_batch
+class SentimentLog(threading.Thread):
+    def __init__(self, queue, sentiment_analysis=None, nr_log_batch=None):
+        super(SentimentLog, self).__init__()
+        self.queue = queue
         self.sentiment_analysis = sentiment_analysis
-        self.ignore_sensitive = ignore_sensitive
+        self.nr_log_batch = nr_log_batch
 
         if self.sentiment_analysis:
             logger.info('Sentiment analysis activated')
@@ -37,6 +34,84 @@ class Twittermon(tweepy.StreamingClient):
         else:
             logger.info('Sentiment analysis deactivated')
 
+        self._last_start = 0
+        self._shutdown = threading.Event()
+
+    def _wait_for_tweet(self, timeout):
+        shutdown = self._shutdown.wait(timeout)
+        return shutdown
+
+    def run(self):
+        wait_seconds = 0
+        wait_seconds_max = 5
+
+        while not self._wait_for_tweet(wait_seconds):
+            try:
+                resp = self.queue.popleft()
+            except IndexError:
+                if wait_seconds < wait_seconds_max:
+                    wait_seconds += 0.1
+            else:
+                wait_seconds = 0
+                if self.sentiment_analysis:
+                    message = self.sentence(" ".join(re.sub("(@[A-Za-z0-9]+)|(^RT )|(https?://\S+)"," ", resp.data.text).split()))
+                if message:
+                    self.classifier.predict(message)
+                    sentiment_label = message.labels[0].value
+                    sentiment_score = message.labels[0].score
+                else:
+                    sentiment_label = "UNKNOWN"
+
+                if sentiment_label == 'POSITIVE':
+                    face = '🟢'
+                    score = 0.5 + (0.5 * sentiment_score)
+                elif sentiment_label == 'NEGATIVE':
+                    face = '🔴'
+                    score = 0.5 - (0.5 * sentiment_score)
+                else:
+                    face = '🟠'
+                    score = 0.5
+
+                for rule in resp.matching_rules:
+                    record_tweet = {
+                        'timestamp': int(resp.data.created_at.timestamp()*1000),
+                        'message': resp.data.text,
+                        'lang': resp.data.lang,
+                        'possibly_sensitive': resp.data.possibly_sensitive,
+                        'retweet_count': resp.data.public_metrics['retweet_count'],
+                        'reply_count': resp.data.public_metrics['reply_count'],
+                        'like_count': resp.data.public_metrics['like_count'],
+                        'quote_count': resp.data.public_metrics['quote_count'],
+                        'matching_rule': rule.tag,
+                        'provider': PROVIDER
+                    }
+                    if self.sentiment_analysis:
+                        record_tweet['sentiment'] = face
+                        record_tweet['score'] = round(score, 2)
+
+                    for user in resp.includes['users']:
+                        if user.id == resp.data.author_id:
+                            record_tweet['name'] = user.name
+                            record_tweet['username'] = user.username
+                            record_tweet['url'] = f"https://twitter.com/{user.username}/status/{resp.data.id}"
+                            record_tweet['followers_count'] = user.public_metrics['followers_count']
+                            break
+                
+                    logger.debug(f"Sending tweet to New Relic {resp.data.id}")
+                    self.nr_log_batch.record(record_tweet)
+
+    def stop(self):
+        # Shutdown the thread
+        self._shutdown.set()
+        self.join()
+
+class TwitterMon(tweepy.StreamingClient):
+
+    def __init__(self, queue, bearer_token=None, ignore_sensitive=None, rules=[]):
+        self.queue = queue
+        self.bearer_token = bearer_token
+        self.ignore_sensitive = ignore_sensitive
+        super().__init__(bearer_token=self.bearer_token, wait_on_rate_limit=True)
         self.update_rules(rules)
 
     def update_rules(self, rules):
@@ -78,51 +153,8 @@ class Twittermon(tweepy.StreamingClient):
                 logger.debug(f"Ignoring sensitive tweet {resp.data.id}")
                 return
 
-        if self.sentiment_analysis:
-            message = self.sentence(" ".join(re.sub("(@[A-Za-z0-9]+)|(^RT )|(https?://\S+)"," ", resp.data.text).split()))
-            if message:
-                self.classifier.predict(message)
-                sentiment_label = message.labels[0].value
-                sentiment_score = message.labels[0].score
-            else:
-                sentiment_label = "UNKNOWN"
-
-            if sentiment_label == 'POSITIVE':
-                face = '🟢'
-                score = 0.5 + (0.5 * sentiment_score)
-            elif sentiment_label == 'NEGATIVE':
-                face = '🔴'
-                score = 0.5 - (0.5 * sentiment_score)
-            else:
-                face = '🟠'
-                score = 0.5
-
-        for rule in resp.matching_rules:
-            record_tweet = {
-                'timestamp': int(resp.data.created_at.timestamp()*1000),
-                'message': resp.data.text,
-                'lang': resp.data.lang,
-                'possibly_sensitive': resp.data.possibly_sensitive,
-                'retweet_count': resp.data.public_metrics['retweet_count'],
-                'reply_count': resp.data.public_metrics['reply_count'],
-                'like_count': resp.data.public_metrics['like_count'],
-                'quote_count': resp.data.public_metrics['quote_count'],
-                'matching_rule': rule.tag,
-                'provider': PROVIDER
-            }
-            if self.sentiment_analysis:
-                record_tweet['sentiment'] = face
-                record_tweet['score'] = round(score, 2)
-
-            for user in resp.includes['users']:
-                if user.id == resp.data.author_id:
-                    record_tweet['name'] = user.name
-                    record_tweet['username'] = user.username
-                    record_tweet['url'] = f"https://twitter.com/{user.username}/status/{resp.data.id}"
-                    break
-        
-            logger.debug(f"Sending tweet to New Relic {resp.data.id}")
-            self.nr_log_batch.record(record_tweet)
+        # Queue up the tweet
+        self.queue.append(resp)
 
 def readconfig():
     logger.info(f"Reading configuration from {rules_filename}")
@@ -141,6 +173,7 @@ if __name__ == '__main__':
     logger = logging.getLogger(PROVIDER)
     logger.info('Started')
     rules_filename = 'rules.yaml'
+    tweet_queue = deque()
 
     try:
         from config import TWITTER_BEARER_TOKEN
@@ -194,18 +227,26 @@ if __name__ == '__main__':
     nr_log_batch = LogBatch()
 
     harvester = Harvester(nr_log_client, nr_log_batch, harvest_interval=NEW_RELIC_HARVEST_INTERVAL)
-    atexit.register(harvester.stop)
     harvester.start()
     rules = readconfig()
 
-    twitter = Twittermon(bearer_token=TWITTER_BEARER_TOKEN, nr_log_batch=nr_log_batch, rules=rules,
-                         ignore_sensitive=IGNORE_SENSITIVE_TWEETS, sentiment_analysis=RUN_SENTIMENT_ANALYSIS)
+    sentimentlog = SentimentLog(tweet_queue, sentiment_analysis=RUN_SENTIMENT_ANALYSIS, nr_log_batch=nr_log_batch)
+    sentimentlog.start()
+
+    twitter = TwitterMon(tweet_queue, bearer_token=TWITTER_BEARER_TOKEN, ignore_sensitive=IGNORE_SENSITIVE_TWEETS, rules=rules)
 
     signal.signal(signal.SIGHUP,rereadconfig)
 
-    twitter.filter(
-        tweet_fields = ['id', 'text', 'created_at', 'lang', 'possibly_sensitive', 'public_metrics'],
-        expansions = ['author_id']
-    )
+    try:
+        twitter.filter(
+            tweet_fields = ['id', 'text', 'created_at', 'lang', 'possibly_sensitive', 'public_metrics'],
+            user_fields = ['public_metrics'],
+            expansions = ['author_id']
+        )
+    except KeyboardInterrupt:
+        sentimentlog.stop()
+        harvester.stop()
+        sys.exit(1)
 
+    sentimentlog.stop()
     harvester.stop()
