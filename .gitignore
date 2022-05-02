@@ -157,4 +157,5 @@ versions.tf
 terraform.tfstate
 /rules.yaml
 /logging.ini
+live/
 .DS_Store
