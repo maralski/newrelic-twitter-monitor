@@ -17,24 +17,19 @@ PROVIDER = 'nrtwittermon'
 DEFAULT_NEW_RELIC_HARVEST_INTERVAL = 5
 DEFAULT_IGNORE_SENSITIVE_TWEETS = False
 DEFAULT_RUN_SENTIMENT_ANALYSIS = True
+DEFAULT_SENTIMENT_CLASSIFICATION_THREADS  = 1
 
 class SentimentLog(threading.Thread):
-    def __init__(self, queue, sentiment_analysis=None, nr_log_batch=None):
+    def __init__(self, queue, nr_log_batch=None):
         super(SentimentLog, self).__init__()
         self.queue = queue
-        self.sentiment_analysis = sentiment_analysis
         self.nr_log_batch = nr_log_batch
 
-        if self.sentiment_analysis:
-            logger.info('Sentiment analysis activated')
-            from flair.models import TextClassifier
-            from flair.data import Sentence
-            self.classifier = TextClassifier.load('en-sentiment')
-            self.sentence = Sentence
-        else:
-            logger.info('Sentiment analysis deactivated')
-
-        self._last_start = 0
+        from flair.models import TextClassifier
+        from flair.data import Sentence
+        
+        self.classifier = TextClassifier.load('en-sentiment')
+        self.sentence = Sentence
         self._shutdown = threading.Event()
 
     def _wait_for_tweet(self, timeout):
@@ -223,6 +218,14 @@ if __name__ == '__main__':
         except KeyError:
             RUN_SENTIMENT_ANALYSIS = DEFAULT_RUN_SENTIMENT_ANALYSIS
 
+    try:
+        from config import SENTIMENT_CLASSIFICATION_THREADS
+    except:
+        try:
+            SENTIMENT_CLASSIFICATION_THREADS = os.environ['SENTIMENT_CLASSIFICATION_THREADS']
+        except KeyError:
+            SENTIMENT_CLASSIFICATION_THREADS = DEFAULT_SENTIMENT_CLASSIFICATION_THREADS
+
     nr_log_client = LogClient(NEW_RELIC_INSERT_KEY)
     nr_log_batch = LogBatch()
 
@@ -230,8 +233,16 @@ if __name__ == '__main__':
     harvester.start()
     rules = readconfig()
 
-    sentimentlog = SentimentLog(tweet_queue, sentiment_analysis=RUN_SENTIMENT_ANALYSIS, nr_log_batch=nr_log_batch)
-    sentimentlog.start()
+    sentiment_workers = []
+
+    if RUN_SENTIMENT_ANALYSIS:
+        logger.info('Sentiment analysis activated')
+        sentiment_workers.append(SentimentLog(tweet_queue, sentiment_analysis=RUN_SENTIMENT_ANALYSIS, nr_log_batch=nr_log_batch))
+        for k, w in enumerate(sentiment_workers):
+            logger.debug(f'Started sentiment worker {k}')
+            w.start()
+    else:
+        logger.info('Sentiment analysis deactivated')
 
     twitter = TwitterMon(tweet_queue, bearer_token=TWITTER_BEARER_TOKEN, ignore_sensitive=IGNORE_SENSITIVE_TWEETS, rules=rules)
 
@@ -244,9 +255,11 @@ if __name__ == '__main__':
             expansions = ['author_id']
         )
     except KeyboardInterrupt:
-        sentimentlog.stop()
+        for w in sentiment_workers:
+            w.stop()
         harvester.stop()
         sys.exit(1)
 
-    sentimentlog.stop()
+    for w in sentiment_workers:
+        w.stop()
     harvester.stop()
