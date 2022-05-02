@@ -48,8 +48,7 @@ class SentimentLog(threading.Thread):
                     wait_seconds += 0.1
             else:
                 wait_seconds = 0
-                if self.sentiment_analysis:
-                    message = self.sentence(" ".join(re.sub("(@[A-Za-z0-9]+)|(^RT )|(https?://\S+)"," ", resp.data.text).split()))
+                message = self.sentence(" ".join(re.sub("(@[A-Za-z0-9]+)|(^RT )|(https?://\S+)"," ", resp.data.text).split()))
                 if message:
                     self.classifier.predict(message)
                     sentiment_label = message.labels[0].value
