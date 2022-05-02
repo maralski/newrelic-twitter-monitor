@@ -1,0 +1,2 @@
+- elon: (elonmusk OR "elon musk") -is:retweet lang:en
+- crypto: crypto -is:retweet lang:en

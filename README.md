@@ -19,14 +19,25 @@ pip install -r requirements.txt
 
 ## Configuration
 
-- Define one or more Twitter stream filter rules in `rules.yaml` that conform to Twitter filter rules [specification](https://developer.twitter.com/en/docs/twitter-api/tweets/filtered-stream/integrate/build-a-rule). Stay within the allowed number of rules associated with your application access level. Rules can be updated on the fly. Just edit `rules.yaml` and send HUP signal to process.
+`rules.yaml`
+
+- A sample `rules.yaml` is included in the `samples/` directory. Copy this to the repositories root and modify as necessary.
+- Define one or more Twitter stream filter rules in `rules.yaml` that conform to Twitter filter rules [specification](https://developer.twitter.com/en/docs/twitter-api/tweets/filtered-stream/integrate/build-a-rule). Stay within the allowed number of rules associated with your application access level. Rules can be updated on the fly and reloaded by send a HUP signal to the process.
 - You may want to negate retweets by adding `-is:retweet` to each rule. Otherwise, Twitter truncates the text of retweets.
+
+`config.py`
+
+- A sample `config.py` is included in the `samples/` directory. Copy this to the repositories root and modify as necessary.
 - Add your Twitter applications bearer token to `config.py` as `TWITTER_BEARER_TOKEN = 'XXX'` or set environment variable.
 - Add New Relic insert key to `config.py` as `NEW_RELIC_INSERT_KEY = 'XXX'` or set environment variable.
 - Sensitive tweets are captured by default. To avoid them add `IGNORE_SENSITIVE_TWEETS = True` to `config.py` or set environment variable.
 - The sentiment of tweets are analysed by default. To deactive this add `RUN_SENTIMENT_ANALYSIS = False` to `config.py` or set environment variable.
 - Events are emitted to New Relic every 5 seconds. To adjust this add `NEW_RELIC_HARVEST_INTERVAL = <seconds>` to `config.py` or set environment variable.
-- Adjust `logging.ini` as required. DEBUG logging is enabled by default.
+
+`logging.ini`
+
+- A sample `logging.ini` is included in the `samples/` directory. Copy this to the repositories root and modify as necessary.
+- DEBUG logging is enabled by default.
 
 ## Deploy New Relic Twitter Monitor Dashboard with Terraform
 
