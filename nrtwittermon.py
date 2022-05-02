@@ -27,7 +27,7 @@ class SentimentLog(threading.Thread):
 
         from flair.models import TextClassifier
         from flair.data import Sentence
-        
+
         self.classifier = TextClassifier.load('en-sentiment')
         self.sentence = Sentence
         self._shutdown = threading.Event()
@@ -237,7 +237,7 @@ if __name__ == '__main__':
 
     if RUN_SENTIMENT_ANALYSIS:
         logger.info('Sentiment analysis activated')
-        sentiment_workers.append(SentimentLog(tweet_queue, sentiment_analysis=RUN_SENTIMENT_ANALYSIS, nr_log_batch=nr_log_batch))
+        sentiment_workers.append(SentimentLog(tweet_queue, nr_log_batch=nr_log_batch))
         for k, w in enumerate(sentiment_workers):
             logger.debug(f'Started sentiment worker {k}')
             w.start()
